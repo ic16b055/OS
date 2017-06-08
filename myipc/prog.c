@@ -43,11 +43,27 @@
 */
 int run(const int argc, char* argv[], const int mode)
 {
-	if (mode == SENDER) {}
+	if (mode == SENDER)
+	{
+		printf("run SENDER:%d\n", mode);
+	}
+	if (mode == EMPFAENGER)
+	{
+		printf("run EMPFAENGER:%d\n", mode);
+	}
+
+
+	int i;
+
+		for (i = 0; i < argc; i++) 
+			{
+			printf("argv[%d] = %s ", i, argv[i]);
+			printf("\n");
+			}
 
 
 
-
+	return 0;
 }
 
 

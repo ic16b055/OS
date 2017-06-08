@@ -38,7 +38,7 @@ EXCLUDE_PATTERN=footrulewidth
 ## --------------------------------------------------------------- targets --
 ##
 
-all: myipc
+all: sender empfaenger
 
 sender: $(OBJECT3) $(OBJECT1)
 	$(CC) $(CFLAGS) -o $@ $^ -lsem182
@@ -50,7 +50,7 @@ clean:
 	$(RM) *.o *~ sender
 	$(RM) *.o *~ empfaenger
 	$(RM) *.o *~ prog
-
+	
 distclean: clean
 	$(RM) -r doc
 

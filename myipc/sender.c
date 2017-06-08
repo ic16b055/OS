@@ -36,8 +36,8 @@
 */
 int main(int argc, char* argv[]) 
 {
-	run(argc,argv,SENDER)
-	return;
+	run(argc, argv, SENDER);
+	return 0;
 }
 
 
