@@ -44,10 +44,9 @@
 /*
 * --------------------------------------------------------------- globals --
 */
-//Ringbuffer Pointer
-static int* shmptr = (int*)-1;
-//Ringbuffer Size
-static long smsize = 0;
+
+static int* shmptr = (int *)-1;	//Ringbuffer Pointer
+static long smsize = 0;				//Ringbuffer Size
 
 static int sem1id = -1;
 static int sem2id = -1;
@@ -58,7 +57,7 @@ static int shmid = -1;
 * ------------------------------------------------------------- functions --
 */
 
-int check_parms(const int argc, char* argv[]);				
+int check_parms(const int argc, char* argv[]);
 
 int init_semaphore(const int key, const int mode);
 int block(const int mode);
@@ -85,18 +84,28 @@ int run(const int argc, char* argv[], const int mode) {
 	int temp = 0;
 	int counter = 0;
 
-	int userid = getuid() * 1000 + 14;
+	int userid = getuid() * 1000;
 
 	check_parms(argc, argv);
 
-	sem1id = init_semaphore(userid, EMPFAENGER);
-	sem2id = init_semaphore(userid + 1, SENDER);
-	init_sharedmem(userid + 2);							//vielleicht nur bei Sender?
+	if (init_semaphore(userid, EMPFAENGER) == -1) {
+		errorhandling(mode, "Cannot init semaphore");
+	}
+
+	if (init_semaphore(userid + 1, SENDER) == -1) {
+		errorhandling(mode, "Cannot init semaphore");
+	}
+
+	if (init_sharedmem(userid + 2) == -1) {				//vielleicht nur bei Sender?
+		errorhandling(mode, "Cannot init shared-memory");
+	}
 
 
 	if (mode == SENDER) {
 
-		shmptr = shmat(shmid, NULL, 0);		//das erzeugte Shared-Memory-Segment an einen Prozess anbinden
+		if ((shmptr = shmat(shmid, NULL, 0)) == (int *)-1) {		//das erzeugte Shared-Memory-Segment an einen Prozess anbinden
+			errorhandling(mode, "Shared-Memory einblenden fehler");
+		}
 
 		do {
 			temp = fgetc(stdin);
@@ -120,8 +129,9 @@ int run(const int argc, char* argv[], const int mode) {
 	}
 	else {
 
-		shmptr = shmat(shmid, NULL, SHM_RDONLY);   //das erzeugte Shared-Memory-Segment an einen Prozess anbinden
-
+		if ((shmptr = shmat(shmid, NULL, SHM_RDONLY)) == (int *)-1) {   //das erzeugte Shared-Memory-Segment an einen Prozess anbinden
+			errorhandling(mode, "Shared-Memory einblenden fehler");
+		}
 
 		do {
 
@@ -228,17 +238,26 @@ int init_semaphore(const int key, const int mode) {
 	}
 
 	semid = seminit(key, 0660, init_buffer);
-
+		
+	
 	if (errno == EEXIST) {
 		semid = semgrab(key);
+		errno = 0;
 	}
 
 	if (semid == -1) {
-		fprintf(stderr, "Cannot grab semaphore\n");
+		fprintf(stderr, "Cannot grab Semaphore\n");
 		exit(EXIT_FAILURE);
 	}
 
-	return semid;
+	if (mode == SENDER) {
+		sem2id = semid;
+	}
+	if (mode == EMPFAENGER) {
+		sem1id = semid;
+	}
+
+	return 0;
 }
 
 /**
@@ -305,8 +324,9 @@ int unblock(const int mode) {
 */
 int init_sharedmem(const int key) {
 
-	shmid = shmget(key, sizeof(int) * smsize, 0660 | IPC_CREAT);
-
+	if ((shmid = shmget(key, (sizeof(int) * smsize), 0660 | IPC_CREAT)) == -1) {
+		return -1;
+	}
 	return 0;
 }
 
@@ -346,17 +366,24 @@ void errorhandling(const int mode, const char *error_message) {
 */
 int cleanup(const int mode) {
 
-	shmdt(shmptr);		//Anbindung Shared-Memory-Segment vom Prozess aufheben
-
+	if (shmdt(shmptr) == -1) { 		//Anbindung Shared-Memory-Segment vom Prozess aufheben
+		errorhandling(mode, "Cannot Shared-Memory ausblenden");
+	}
 	if (mode == EMPFAENGER) {
 
-		semrm(sem1id);
+		if (semrm(sem1id) == -1) {
+			errorhandling(mode, "Cannot remove Semaphore");
+		}
 		sem1id = -1;
 
-		semrm(sem2id);
+		if (semrm(sem2id) == -1) {
+			errorhandling(mode, "Cannot remove Semaphore");
+		}
 		sem2id = -1;
 
-		shmctl(shmid, IPC_RMID, NULL);
+		if (shmctl(shmid, IPC_RMID, NULL) == -1) {
+			errorhandling(mode, "Cannot Shared-Memory entfernen");
+		}
 		shmid = -1;
 
 	}
