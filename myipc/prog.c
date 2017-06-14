@@ -8,7 +8,7 @@
 * @author Christian Fuhry <ic16b055@technikum-wien.at>
 * @author Sebastian Boehm <ic16b032@technikum-wien.at>
 *
-* @date 2017/06				 ipcrm -s/-m key
+* @date 2017/06				 
 *
 */
 
@@ -29,6 +29,7 @@
 #include <sys/ipc.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <stdint.h>
 
 /*
 * --------------------------------------------------------------- defines --
@@ -45,8 +46,10 @@
 * --------------------------------------------------------------- globals --
 */
 
-static int* shmptr = (int *)-1;	//Ringbuffer Pointer
-static long smsize = 0;				//Ringbuffer Size
+/* Ringbuffer pointer */
+static int* shmptr = (int *)-1;		
+/* Ringbuffer size */
+static long smsize = 0;				
 
 static int sem1id = -1;
 static int sem2id = -1;
@@ -66,45 +69,48 @@ int unblock(const int mode);
 int init_sharedmem(const int key);
 
 void errorhandling(const int mode, const char *error_message);
-int cleanup(const int mode);
+void cleanup(const int mode);
 
 /**
 *
-* \name
+* \run
 *
-* \brief
+* \This is the main entry point for this program (SENDER or EMPFAENGER)
+* \shmat() attaches the shared memory segment identified by shmid to the address space of the calling process. 
+* \fgetc() reads the next character from stream and returns it as an unsigned char cast to an int, or EOF on end of file or error. 
+* \fputc() writes the character c, cast to an unsigned char, to stream. 
+* 
+* \param argc given numbers of arguments
+* \param argv given arguments
+* \param const int mode = SENDER or EMPFAENGER
 *
-* \param
-*
-* \return
-*
+* \retval EXIT_SUCCESS if successful
+* \retval EXIT_FAILURE if erroneous
 */
 int run(const int argc, char* argv[], const int mode) {
 
 	int temp = 0;
 	int counter = 0;
-
 	int userid = getuid() * 1000;
 
 	check_parms(argc, argv);
 
 	if (init_semaphore(userid, EMPFAENGER) == -1) {
-		errorhandling(mode, "Cannot init semaphore");
+		errorhandling(mode, "Cannot init semaphore 1");
 	}
 
 	if (init_semaphore(userid + 1, SENDER) == -1) {
-		errorhandling(mode, "Cannot init semaphore");
+		errorhandling(mode, "Cannot init semaphore 2");
 	}
 
-	if (init_sharedmem(userid + 2) == -1) {				//vielleicht nur bei Sender?
+	if (init_sharedmem(userid + 2) == -1) {				
 		errorhandling(mode, "Cannot init shared-memory");
 	}
 
-
 	if (mode == SENDER) {
-
-		if ((shmptr = shmat(shmid, NULL, 0)) == (int *)-1) {		//das erzeugte Shared-Memory-Segment an einen Prozess anbinden
-			errorhandling(mode, "Shared-Memory einblenden fehler");
+	
+		if ((shmptr = shmat(shmid, NULL, 0)) == (int *)-1) {		
+			errorhandling(mode, "Shared-Memory attach error");
 		}
 
 		do {
@@ -117,7 +123,8 @@ int run(const int argc, char* argv[], const int mode) {
 			if (block(mode) == -1) {
 				errorhandling(mode, "Semaphore block error");
 			}
-			shmptr[counter] = temp;					// critical section 
+			/* critical section */
+			shmptr[counter] = temp;					 
 
 			if (unblock(mode) == -1) {
 				errorhandling(mode, "Semaphore unblock error");
@@ -127,10 +134,10 @@ int run(const int argc, char* argv[], const int mode) {
 
 		} while (temp != EOF);
 	}
-	else {
+	else if (mode == EMPFAENGER) {
 
-		if ((shmptr = shmat(shmid, NULL, SHM_RDONLY)) == (int *)-1) {   //das erzeugte Shared-Memory-Segment an einen Prozess anbinden
-			errorhandling(mode, "Shared-Memory einblenden fehler");
+		if ((shmptr = shmat(shmid, NULL, SHM_RDONLY)) == (int *) -1) {   
+			errorhandling(mode, "Shared-Memory attach error");
 		}
 
 		do {
@@ -138,7 +145,8 @@ int run(const int argc, char* argv[], const int mode) {
 			if (block(mode) == -1) {
 				errorhandling(mode, "Semaphore block error");
 			}
-			temp = shmptr[counter];					// critical section  
+			/* critical section */
+			temp = shmptr[counter];					 
 
 			if (unblock(mode) == -1) {
 				errorhandling(mode, "Semaphore unblock error");
@@ -155,24 +163,30 @@ int run(const int argc, char* argv[], const int mode) {
 		} while (temp != EOF);
 
 	}
+	else {
+		errorhandling(mode, "Programm error");
+	}
 
 	cleanup(mode);
 
-	return 0;
+	return EXIT_SUCCESS;
 }
 
 /**
 *
-* \name
+* \check_parms
 *
-* \brief
+* \This function compares the arguments entered with the set parms.
+* \If returned unsuccessful, usage is printed.
 *
-* \param
+* \param argc given numbers of arguments
+* \param argv given arguments 
 *
-* \return
-*
+* \retval EXIT_SUCCESS if successful
+* \retval EXIT_FAILURE if erroneous
 */
 int check_parms(const int argc, char* argv[]) {
+	
 	smsize = 0;
 	int usage = 0;
 	int option = 0;
@@ -182,7 +196,6 @@ int check_parms(const int argc, char* argv[]) {
 	if (argc < 2) {
 		usage = 1;
 	}
-
 	while ((option = getopt(argc, argv, "m:")) != -1) {
 
 		errno = 0;
@@ -192,17 +205,15 @@ int check_parms(const int argc, char* argv[]) {
 		}
 		if (option == 'm') {
 			smsize = strtol(optarg, &endptr, 10);
+			
 
 			if (*endptr != '\0') {
 				fprintf(stderr, "Usage: -m Characters found in buffersize\n");
 				exit(EXIT_FAILURE);
 			}
-			if (errno == ERANGE && smsize == LONG_MAX) {
-				fprintf(stderr, "Usage: -m Buffersize to large\n");
-				exit(EXIT_FAILURE);
-			}
-			if (smsize <= 0) {
-				fprintf(stderr, "Usage: -m Buffersize to small\n");
+
+			if (smsize <= 0 || smsize > SIZE_MAX / sizeof(int *)) {
+				fprintf(stderr, "Usage: -m Buffersize out of range\n");
 				exit(EXIT_FAILURE);
 			}
 		}
@@ -214,18 +225,23 @@ int check_parms(const int argc, char* argv[]) {
 		fprintf(stderr, "Usage: -m <buffersize>\n");
 		exit(EXIT_FAILURE);
 	}
-	return 0;
+	return EXIT_SUCCESS;
 }
+
 /**
 *
-* \name
+* \init_semaphore
 *
-* \brief
+* \The seminit() function creates a new semaphore with the given key and permissions as specified in semperm, 
+* \and initializes it with the value of initval. The function fails if a semaphore associated with key already exists.
+* \The semgrab() function obtains the semaphore associated with the given key. 
+* \The function fails if a semaphore associated with key has not been created yet.
+* 
+* \param const int key = userid
+* \param const int mode = SENDER or EMPFAENGER
 *
-* \param
-*
-* \return
-*
+* \retval EXIT_SUCCESS if successful
+* \retval EXIT_FAILURE if erroneous
 */
 int init_semaphore(const int key, const int mode) {
 
@@ -233,7 +249,7 @@ int init_semaphore(const int key, const int mode) {
 	int init_buffer = 0;
 	errno = 0;
 
-	if (mode == SENDER) {					//buffer für sender oder init buffer 0 für empfänger
+	if (mode == SENDER) {					
 		init_buffer = smsize;
 	}
 
@@ -246,30 +262,30 @@ int init_semaphore(const int key, const int mode) {
 	}
 
 	if (semid == -1) {
-		fprintf(stderr, "Cannot grab Semaphore\n");
-		exit(EXIT_FAILURE);
+		errorhandling(mode, "Cannot grab Semaphore");
 	}
 
 	if (mode == SENDER) {
 		sem2id = semid;
 	}
-	if (mode == EMPFAENGER) {
+	else if (mode == EMPFAENGER) {
 		sem1id = semid;
 	}
 
-	return 0;
+	return EXIT_SUCCESS;
 }
 
 /**
 *
-* \name
+* \block
 *
-* \brief
+* \The P() function attempts to decrement the value of the semaphore identified by semid atomically by one.
+* \If the value of the semaphore is already zero, P() blocks until the value becomes greater than zero.
 *
-* \param
+* \param const int mode = SENDER or EMPFAENGER
 *
-* \return
-*
+* \retval EXIT_SUCCESS if successful
+* \retval EXIT_FAILURE if erroneous
 */
 
 int block(const int mode) {
@@ -280,22 +296,29 @@ int block(const int mode) {
 		sem_id = sem1id;
 	}
 
-	if (P(sem_id) == -1) {
-		return -1;
+	while (P(sem_id) == -1) {
+		if (errno == EINTR) {
+			/* syscall interrupted by signal, try again */
+			continue;
+		}
+		else {
+		return EXIT_FAILURE;
+		}	
 	}
-	return 0;
+	return EXIT_SUCCESS;
 }
 
 /**
 *
-* \name
+* \unblock
 *
-* \brief
+* \The V() function increments the value of the semaphore identified by semid atomically by one. 
+* \If a process is waiting on the semaphore, this process is unblocked
 *
-* \param
+* \param const int mode = SENDER or EMPFAENGER
 *
-* \return
-*
+* \retval EXIT_SUCCESS if successful
+* \retval EXIT_FAILURE if erroneous
 */
 int unblock(const int mode) {
 
@@ -305,69 +328,70 @@ int unblock(const int mode) {
 		sem_id = sem2id;
 	}
 
-	if (V(sem_id) == -1) {
-		return -1;
+	while (V(sem_id) == -1) {
+		if (errno == EINTR) {
+			/* syscall interrupted by signal, try again */
+			continue;
+		}
+		else {
+			return EXIT_FAILURE;
+		}
 	}
-	return 0;
+	return EXIT_SUCCESS;
 }
 
 /**
 *
-* \name
+* \init_sharedmem
 *
-* \brief
+* \shmget - allocates a shared memory segment.
 *
-* \param
+* \param const int key = userid
 *
-* \return
-*
+* \retval EXIT_SUCCESS if successful
+* \retval EXIT_FAILURE if erroneous
 */
 int init_sharedmem(const int key) {
 
 	if ((shmid = shmget(key, (sizeof(int) * smsize), 0660 | IPC_CREAT)) == -1) {
-		return -1;
+		return EXIT_FAILURE;
 	}
-	return 0;
+	return EXIT_SUCCESS;
 }
-
 
 /**
 *
-* \name
+* \errorhandling
 *
-* \brief
+* \This function prints error messages and call the cleanup function.
 *
-* \param
-*
-* \return
-*
+* \param const int mode = SENDER or EMPFAENGER
+* \param const char *error_message = Error String
 */
 void errorhandling(const int mode, const char *error_message) {
-	printf("ERROR %c \n", *error_message);
-
-
+	
+	fprintf(stderr,"ERROR: %c \n", *error_message);
 
 	cleanup(mode);
 
 	exit(EXIT_FAILURE);
 }
 
-
 /**
 *
-* \name
+* \cleanup
+* \The shmdt() function detaches the shared memory segment located at the address specified by the calling process.
+* \The semrm() function removes the semaphore identified by the given semid. 
+* \It fails if a semaphore with the given ID does not exist.
+* \The shmctl() function performs the control operationIPC_RMID  Mark the segment to be destroyed. 
+* \The segment will actually be destroyed only after the last process detaches it.
 *
-* \brief
-*
-* \param
-*
-* \return
-*
+* \param const int mode = SENDER or EMPFAENGER
 */
-int cleanup(const int mode) {
+void cleanup(const int mode) {
 
-	if (shmdt(shmptr) == -1) { 		//Anbindung Shared-Memory-Segment vom Prozess aufheben
-		errorhandling(mode, "Cannot Shared-Memory ausblenden");
+	if (shmdt(shmptr) == -1) { 		
+		errorhandling(mode, "Cannot detache Shared-Memory");
 	}
 	if (mode == EMPFAENGER) {
 
@@ -382,15 +406,13 @@ int cleanup(const int mode) {
 		sem2id = -1;
 
 		if (shmctl(shmid, IPC_RMID, NULL) == -1) {
-			errorhandling(mode, "Cannot Shared-Memory entfernen");
+			errorhandling(mode, "Cannot remove Shared-Memory");
 		}
 		shmid = -1;
-
 	}
 	if (fflush(stdout) == EOF) {
-		fprintf(stderr, "Error flushing stdout");
+		fprintf(stderr, "Cannot flushing stdout");
 	}
-	return 0;
 }
 
 /*
