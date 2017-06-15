@@ -212,7 +212,7 @@ int check_parms(const int argc, char* argv[]) {
 				exit(EXIT_FAILURE);
 			}
 
-			if (smsize <= 0 || smsize > SIZE_MAX / sizeof(int *)) {
+			if (smsize <= 0 || (unsigned)smsize > SIZE_MAX / sizeof(int *)) {
 				fprintf(stderr, "Usage: -m Buffersize out of range\n");
 				exit(EXIT_FAILURE);
 			}
