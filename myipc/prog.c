@@ -49,7 +49,7 @@
 /* Ringbuffer pointer */
 static int* shmptr = (int *)-1;
 /* Ringbuffer size */
-static long smsize = 0;
+static unsigned int smsize = 0;
 
 static int sem1id = -1;
 static int sem2id = -1;
@@ -200,7 +200,10 @@ static void check_parms(const int argc, char* argv[]) {
 
 		errno = 0;
 		if (optind < argc) {
-			fprintf(stderr, "Usage: -m Too many arguments\n");
+			fprintf(stderr, "Usage: %s -m Too many arguments\n", argv[0]);
+			if (errno != 0) {
+				fprintf(stderr, "Errno: %s \n", strerror(errno));
+			}
 			exit(EXIT_FAILURE);
 		}
 		if (option == 'm') {
@@ -208,12 +211,18 @@ static void check_parms(const int argc, char* argv[]) {
 
 
 			if (*endptr != '\0') {
-				fprintf(stderr, "Usage: -m Characters found in buffersize\n");
+				fprintf(stderr, "Usage: %s -m Characters found in buffersize\n", argv[0]);
+				if (errno != 0) {
+					fprintf(stderr, "Errno: %s \n", strerror(errno));
+				}
 				exit(EXIT_FAILURE);
 			}
 
-			if (smsize <= 0 || (unsigned)smsize > SIZE_MAX / sizeof(int) {
-				fprintf(stderr, "Usage: -m Buffersize out of range\n");
+			if (smsize <= 0 || smsize > SIZE_MAX / sizeof(int)) {
+				fprintf(stderr, "Usage: %s -m Buffersize out of range\n", argv[0]);
+				if (errno != 0) {
+					fprintf(stderr, "Errno: %s \n", strerror(errno));
+				}
 				exit(EXIT_FAILURE);
 			}
 		}
@@ -223,7 +232,7 @@ static void check_parms(const int argc, char* argv[]) {
 	}
 	if (optind != argc || usage != 0 || errno != 0) {
 		fprintf(stderr, "Usage: %s -m <buffersize>\n", argv[0]);
-		
+
 		if (errno != 0) {
 			fprintf(stderr, "Errno: %s \n", strerror(errno));
 		}
