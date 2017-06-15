@@ -37,7 +37,8 @@
 
 #define SENDER 0
 #define EMPFAENGER 1
-
+/* Shared Memory Max-size in byte */
+#define SM_MAX 4294967295 
 /*
 * -------------------------------------------------------------- typedefs --
 */
@@ -205,7 +206,10 @@ static void check_parms(const int argc, char* argv[]) {
 		}
 		if (option == 'm') {
 			smsize = strtol(optarg, &endptr, 10);
-
+			if (errno == ERANGE && ((long)smsize < LONG_MIN || (long)smsize > LONG_MAX)) {
+				fprintf(stderr, "Usage: %s - %s -m Buffersize error\n", argv[0], strerror(errno));
+				exit(EXIT_FAILURE);
+			}
 
 			if (*endptr != '\0') {
 				fprintf(stderr, "Usage: %s -m Characters found in buffersize\n", argv[0]);
@@ -215,8 +219,8 @@ static void check_parms(const int argc, char* argv[]) {
 				exit(EXIT_FAILURE);
 			}
 
-			if (smsize <= 0 || (unsigned) smsize > SIZE_MAX / sizeof(int)) {
-				fprintf(stderr, "Usage: %s -m Buffersize out of range\n", argv[0]);
+			if (smsize <= 0 || smsize > SM_MAX / sizeof(long)) {
+				fprintf(stderr, "Usage: %s -m Shared-Memory size out of range\n", argv[0]);
 				if (errno != 0) {
 					fprintf(stderr, "Errno: %s \n", strerror(errno));
 				}
@@ -362,7 +366,7 @@ static int unblock(const int mode) {
 */
 static int init_sharedmem(const int key) {
 
-	if ((shmid = shmget(key, (sizeof(int) * smsize), 0660 | IPC_CREAT)) == -1) {
+	if ((shmid = shmget(key, (sizeof(long) * smsize), 0660 | IPC_CREAT)) == -1) {
 		return EXIT_FAILURE;
 	}
 	return EXIT_SUCCESS;
