@@ -181,9 +181,6 @@ int run(const int argc, char* argv[], const int mode) {
 *
 * \param argc given numbers of arguments
 * \param argv given arguments
-*
-* \retval EXIT_SUCCESS if successful
-* \retval EXIT_FAILURE if erroneous
 */
 static void check_parms(const int argc, char* argv[]) {
 
